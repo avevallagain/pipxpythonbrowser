@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pybrowser"
-version = "4.7.1"
+version = "4.7.0"
 description = "Native macOS Chromium/Material 3 Web Browser in PyObjC & WebKit"
 readme = "README.md"
 requires-python = ">=3.9"
