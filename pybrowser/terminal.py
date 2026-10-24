@@ -15,7 +15,6 @@ import base64
 import time
 import signal
 import Cocoa
-from pybrowser.config import LOCAL_PROXY_PORT
 
 def dispatch_to_main(fn, *args):
     """Executes a function on the macOS main Cocoa run loop."""
@@ -49,29 +48,7 @@ class TerminalSession:
             env = os.environ.copy()
             env["TERM"] = "xterm-256color"
             env["LANG"] = "en_US.UTF-8"
-            env["LC_ALL"] = "en_US.UTF-8"
-            env["LC_CTYPE"] = "en_US.UTF-8"
-            env["LESSCHARSET"] = "utf-8"
-            env["NCURSES_NO_UTF8_ACS"] = "1"
-            env["HOME"] = os.path.expanduser("~")
-            env["USER"] = os.environ.get("USER", "user")
             env["SHELL"] = "/bin/zsh" if os.path.exists("/bin/zsh") else "/bin/bash"
-            env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin"
-            env["MANWIDTH"] = "tty"
-            env["COLUMNS"] = str(self.cols)
-            env["LINES"] = str(self.rows)
-
-            # --- Route Terminal through PyBrowser's DoH Proxy ---
-            proxy_url = f"http://127.0.0.1:{LOCAL_PROXY_PORT}"
-            env["http_proxy"] = proxy_url
-            env["https_proxy"] = proxy_url
-            env["all_proxy"] = proxy_url
-            env["HTTP_PROXY"] = proxy_url
-            env["HTTPS_PROXY"] = proxy_url
-            env["ALL_PROXY"] = proxy_url
-            # Keep local servers accessible without proxying:
-            env["no_proxy"] = "localhost,127.0.0.1,::1"
-            env["NO_PROXY"] = "localhost,127.0.0.1,::1"
 
             self.proc = subprocess.Popen(
                 [env["SHELL"], "-l"],
