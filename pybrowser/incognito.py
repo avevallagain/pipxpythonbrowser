@@ -18,9 +18,10 @@ def create_incognito_data_store():
             pass
     return ds
 
-def apply_incognito_preferences(config):
+def apply_incognito_preferences(config, shared_data_store=None):
     """Configures a WKWebViewConfiguration for zero-persistence incognito browsing."""
-    config.setWebsiteDataStore_(create_incognito_data_store())
+    data_store = shared_data_store or create_incognito_data_store()
+    config.setWebsiteDataStore_(data_store)
     try:
         config.preferences().setValue_forKey_(True, "developerExtrasEnabled")
         config.preferences().setValue_forKey_(True, "fullScreenEnabled")
