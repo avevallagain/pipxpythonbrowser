@@ -40,6 +40,7 @@ class ProcessManagerController(Cocoa.NSWindowController):
         
         self = objc.super(ProcessManagerController, self).initWithWindow_(window)
         if self:
+            window.setDelegate_(self)
             self.filter_query = ""
             self.timer = None
             self.action_targets = {}
@@ -112,7 +113,6 @@ class ProcessManagerController(Cocoa.NSWindowController):
             self.timer = None
 
     def onPurgeMemory_(self, sender):
-        # Lazy imports to prevent circular dependencies
         try:
             from pybrowser.doh_server import DNS_CACHE, DNS_LOCK
             with DNS_LOCK:
