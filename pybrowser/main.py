@@ -28,7 +28,6 @@ elif os.path.basename(current_dir).lower() == "pybrowser" or os.path.isfile(os.p
 
 # Case 3: Flat layout (all files are in the same folder with no pybrowser/ subfolder)
 elif os.path.isfile(os.path.join(current_dir, "browser.py")):
-    # Alias the current folder as the 'pybrowser' package so imports work seamlessly
     if "pybrowser" not in sys.modules:
         pkg = types.ModuleType("pybrowser")
         pkg.__path__ = [current_dir]
