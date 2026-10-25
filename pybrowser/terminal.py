@@ -55,7 +55,7 @@ class TerminalSession:
                 stdin=slave_fd,
                 stdout=slave_fd,
                 stderr=slave_fd,
-                preexec_fn=os.setsid,
+                start_new_session=True,
                 close_fds=True,
                 env=env,
                 cwd=os.path.expanduser("~")
@@ -68,7 +68,7 @@ class TerminalSession:
     def _read_loop(self):
         while self.alive and self.master_fd >= 0:
             try:
-                r, _, _ = select.select([self.master_fd], [], [], 0.02)
+                r, _, _ = select.select([self.master_fd], [], [], 0.05)
                 if r:
                     with self.lock:
                         if self.master_fd < 0:
@@ -157,6 +157,7 @@ class TerminalSession:
                     pass
             self.proc = None
 
+        self.webview = None
         if self.on_close:
             try:
                 self.on_close(self)
