@@ -1,6 +1,6 @@
 """
 PyBrowser: Native macOS Chromium/Material 3 Web Browser (PyObjC & WebKit).
-Main Browser Module with Tab Management, UI Views, Omnibox, and App Delegate.
+Main Browser Module - Part 1: Views, Delegates, Coordinators & Utilities.
 """
 
 import os
@@ -600,7 +600,6 @@ class TabGroupHeaderView(Cocoa.NSView):
 # MATERIAL 3 CHROME VIEWS & DELEGATES
 # ============================================================================
 class ChromeTabStripView(Cocoa.NSView):
-    """Container view for horizontal or vertical tab bars with double-click support."""
     def initWithFrame_(self, frame):
         self = objc.super(ChromeTabStripView, self).initWithFrame_(frame)
         if self:
@@ -625,7 +624,6 @@ class ChromeTabStripView(Cocoa.NSView):
         objc.super(ChromeTabStripView, self).mouseDown_(event)
 
 class ChromeTabView(Cocoa.NSView):
-    """Custom Material 3 Tab view supporting favicon, title, audio icon, and close button."""
     def initWithFrame_controller_index_(self, frame, controller, index):
         self = objc.super(ChromeTabView, self).initWithFrame_(frame)
         if self:
@@ -691,7 +689,7 @@ class ChromeTabView(Cocoa.NSView):
         if tab.get("pinned", False):
             return
 
-        # Audio / Mute Indicator
+        # Audio indicator
         has_audio = tab.get("has_audio", False)
         is_muted = tab.get("is_muted", False)
         right_offset = 24.0
@@ -705,7 +703,7 @@ class ChromeTabView(Cocoa.NSView):
         else:
             self.audio_btn_rect = Cocoa.NSZeroRect
 
-        # Close Button
+        # Close button
         self.close_btn_rect = Cocoa.NSMakeRect(bounds.size.width - 20, (bounds.size.height - 14) / 2.0, 14, 14)
         if self.is_hovered or is_active:
             close_attrs = {
@@ -714,7 +712,7 @@ class ChromeTabView(Cocoa.NSView):
             }
             Cocoa.NSAttributedString.alloc().initWithString_attributes_("✕", close_attrs).drawAtPoint_(Cocoa.NSMakePoint(self.close_btn_rect.origin.x + 2, self.close_btn_rect.origin.y - 1))
 
-        # Title
+        # Tab title
         title_x = icon_x + 20.0
         max_title_w = max(10.0, bounds.size.width - title_x - right_offset)
         title = tab.get("title", "New Tab")
@@ -758,7 +756,6 @@ class ChromeTabView(Cocoa.NSView):
     def onContextClose_(self, sender): self.controller.close_tab(self.index)
 
 class ChromeToolbarView(Cocoa.NSView):
-    """Material 3 Navigation & Action Toolbar."""
     def initWithFrame_(self, frame):
         self = objc.super(ChromeToolbarView, self).initWithFrame_(frame)
         if self:
@@ -769,13 +766,11 @@ class ChromeToolbarView(Cocoa.NSView):
         is_inc = self.controller.is_incognito if self.controller else False
         get_m3_color("toolbar-bg", self, is_inc).setFill()
         Cocoa.NSRectFill(self.bounds())
-        # Bottom divider
         sep = Cocoa.NSBezierPath.bezierPathWithRect_(Cocoa.NSMakeRect(0, 0, self.bounds().size.width, 1))
         get_m3_color("toolbar-separator", self, is_inc).setFill()
         sep.fill()
 
 class BookmarksBarView(Cocoa.NSView):
-    """Material 3 Horizontal Bookmarks Bar."""
     def initWithFrame_controller_(self, frame, controller):
         self = objc.super(BookmarksBarView, self).initWithFrame_(frame)
         if self:
@@ -827,7 +822,6 @@ class BookmarksBarView(Cocoa.NSView):
                 wv.loadRequest_(Foundation.NSURLRequest.requestWithURL_(Foundation.NSURL.URLWithString_(url)))
 
 class DownloadDelegate(Cocoa.NSObject):
-    """WebKit Download Delegate handling file deduplication and status synchronization."""
     def initWithController_(self, controller):
         self = objc.super(DownloadDelegate, self).init()
         if self:
@@ -847,13 +841,30 @@ class DownloadDelegate(Cocoa.NSObject):
 
         self.dest_paths[download] = dest_path
         self.controller.register_download(os.path.basename(dest_path), dest_path, download)
+
+        if hasattr(download, "progress") and download.progress():
+            try:
+                download.progress().addObserver_forKeyPath_options_context_(self.controller, "fractionCompleted", Cocoa.NSKeyValueObservingOptionNew, None)
+            except Exception:
+                pass
+
         handler(Foundation.NSURL.fileURLWithPath_(dest_path))
 
     def downloadDidFinish_(self, download):
+        if hasattr(download, "progress") and download.progress():
+            try:
+                download.progress().removeObserver_forKeyPath_(self.controller, "fractionCompleted")
+            except Exception:
+                pass
         path = self.dest_paths.pop(download, None)
         self.controller.finish_download(download, "Completed", dl_path=path)
 
     def download_didFailWithError_resumeData_(self, download, error, resumeData):
+        if hasattr(download, "progress") and download.progress():
+            try:
+                download.progress().removeObserver_forKeyPath_(self.controller, "fractionCompleted")
+            except Exception:
+                pass
         path = self.dest_paths.pop(download, None)
         self.controller.finish_download(download, "Failed", dl_path=path)
 
@@ -920,7 +931,7 @@ class InternalSchemeHandler(Cocoa.NSObject):
         t = SETTINGS.settings.get("terminal_theme", "luna")
         bg = "#000000" if t == "kitty" else ("#1e1e1e" if t == "normal" else "#1e1e2e")
         fg = "#dddddd" if t == "kitty" else ("#cccccc" if t == "normal" else "#c792ea")
-        return f"<!DOCTYPE html><html><head><meta charset='utf-8'><link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css' /><script src='https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js'></script><script src='https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js'></script><style>*{{box-sizing:border-box;margin:0;padding:0}}html,body,#t{{width:100vw;height:100vh;background:{bg};overflow:hidden}}</style></head><body><div id='t'></div><script>const term=new Terminal({{fontFamily:'Menlo,Monaco,monospace',fontSize:13,theme:{{background:'{bg}',foreground:'{fg}'}}}});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open(document.getElementById('t'));fit.fit();window.addEventListener('resize',()=>{{fit.fit();window.webkit.messageHandlers.terminalResize.postMessage({{cols:term.cols,rows:term.rows}})}});term.onData(d=>window.webkit.messageHandlers.terminalInput.postMessage(d));window.writeToTerm=b=>{{const s=atob(b),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);term.write(new TextDecoder().decode(u))}};</script></body></html>"
+        return f"""<!DOCTYPE html><html><head><meta charset='utf-8'><link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css' /><script src='https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js'></script><script src='https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js'></script><style>*{{box-sizing:border-box;margin:0;padding:0}}html,body,#t{{width:100vw;height:100vh;background:{bg};overflow:hidden}}</style></head><body><div id='t'></div><script>const term=new Terminal({{fontFamily:'Menlo,Monaco,monospace',fontSize:13,theme:{{background:'{bg}',foreground:'{fg}'}}}});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open(document.getElementById('t'));fit.fit();const postResize=()=>{{fit.fit();if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.terminalResize)window.webkit.messageHandlers.terminalResize.postMessage({{cols:term.cols,rows:term.rows}});}};setTimeout(postResize,50);window.addEventListener('resize',postResize);term.onData(d=>{{if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.terminalInput)window.webkit.messageHandlers.terminalInput.postMessage(d);}});window.writeToTerm=b=>{{const s=atob(b),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);term.write(new TextDecoder().decode(u));}};</script></body></html>"""
 
     def get_bookmarks_html(self):
         bms = []
@@ -936,13 +947,18 @@ class InternalSchemeHandler(Cocoa.NSObject):
                 u = b["url"]
                 t = b.get("title", u)
                 safe_u = json.dumps(u)
-                items.append(f"<li><a href='{html.escape(u)}'>{html.escape(t)}</a> <button onclick='window.webkit.messageHandlers.bridge.postMessage({{cmd:\"delete_bookmark\",url:{safe_u}}});setTimeout(()=>location.reload(),100)'>Delete</button></li>")
+                del_call = f"window.webkit.messageHandlers.bridge.postMessage({{cmd: 'delete_bookmark', url: {safe_u}}}); setTimeout(() => location.reload(), 100);"
+                items.append(f"<li><a href='{html.escape(u)}'>{html.escape(t)}</a> <button onclick='{del_call}'>Delete</button></li>")
         rows = "".join(items)
         return f"<!DOCTYPE html><html><body style='font-family:-apple-system,sans-serif;padding:30px;'><h2>Bookmarks</h2><div style='margin-bottom:15px;'><input id='t' placeholder='Title'><input id='u' placeholder='https://...'><button onclick='window.webkit.messageHandlers.bridge.postMessage({{cmd:\"add_bookmark\",title:document.getElementById(\"t\").value,url:document.getElementById(\"u\").value}});setTimeout(()=>location.reload(),100)'>Add</button></div><ul>{rows or '<li>No bookmarks</li>'}</ul></body></html>"
 
     def get_history_html(self):
         records = query_history()
-        rows = "".join([f"<tr><td>{r[3]}</td><td><a href='{html.escape(r[1])}'>{html.escape(r[2])}</a></td><td><button onclick=\"window.webkit.messageHandlers.bridge.postMessage({{cmd:'delete_history_item',id:{r[0]}}});this.closest('tr').remove()\">✕</button></td></tr>" for r in records])
+        items = []
+        for r in records:
+            del_call = f"window.webkit.messageHandlers.bridge.postMessage({{cmd: 'delete_history_item', id: {r[0]}}}); this.closest('tr').remove();"
+            items.append(f"<tr><td>{r[3]}</td><td><a href='{html.escape(r[1])}'>{html.escape(r[2])}</a></td><td><button onclick='{del_call}'>✕</button></td></tr>")
+        rows = "".join(items)
         return f"<!DOCTYPE html><html><body style='font-family:-apple-system,sans-serif;padding:30px;'><h2>History</h2><button onclick=\"window.webkit.messageHandlers.bridge.postMessage({{cmd:'clear_browsing_data',targets:['history']}});setTimeout(()=>location.reload(),100)\">Clear All</button><table style='width:100%;margin-top:15px;'>{rows or '<tr><td>No history</td></tr>'}</table></body></html>"
 
     def get_downloads_html(self):
@@ -955,11 +971,13 @@ class InternalSchemeHandler(Cocoa.NSObject):
             f = s["file"]
             safe_f = json.dumps(f)
             checked = "checked" if s["enabled"] else ""
+            toggle_call = f"window.webkit.messageHandlers.bridge.postMessage({{cmd: 'toggle_script', file: {safe_f}, enabled: this.checked}})"
+            del_call = f"if(confirm('Delete?')){{window.webkit.messageHandlers.bridge.postMessage({{cmd: 'delete_script', file: {safe_f}}}); setTimeout(() => location.reload(), 100);}}"
             items.append(
                 f"<div style='border:1px solid #ccc;padding:10px;margin-bottom:8px;'>"
                 f"<b>{html.escape(s['name'])}</b> ({html.escape(f)}) "
-                f"<label><input type='checkbox' {checked} onchange='window.webkit.messageHandlers.bridge.postMessage({{cmd:\"toggle_script\",file:{safe_f},enabled:this.checked}})'> Enabled</label> "
-                f"<button onclick='if(confirm(\"Delete?\")){{window.webkit.messageHandlers.bridge.postMessage({{cmd:\"delete_script\",file:{safe_f}}});setTimeout(()=>location.reload(),100)}}'>Delete</button>"
+                f"<label><input type='checkbox' {checked} onchange='{toggle_call}'> Enabled</label> "
+                f"<button onclick=\"{del_call}\">Delete</button>"
                 f"</div>"
             )
         rows = "".join(items)
@@ -969,7 +987,6 @@ class InternalSchemeHandler(Cocoa.NSObject):
 # WEBKIT SUBCLASS & IMAGE CONTEXT MENU
 # ============================================================================
 class BrowserWebView(WebKit.WKWebView):
-    """Subclass intercepting context menus to provide robust image handling."""
     def willOpenMenu_withEvent_(self, menu, event):
         self.open_image_item = None
         download_item = None
@@ -1507,6 +1524,7 @@ class BrowserWindowController(Cocoa.NSWindowController):
         self = objc.super(BrowserWindowController, self).init()
         if self:
             self.is_incognito = is_incognito
+            self.incognito_data_store = create_incognito_data_store() if is_incognito else None
             self.tabs, self.groups, self.closed_tabs = [], [], []
             self.active_tab_index, self.downloads = -1, []
             self.tab_bar_visible, self.is_fullscreen = True, False
@@ -1791,7 +1809,7 @@ class BrowserWindowController(Cocoa.NSWindowController):
     def add_tab(self, url, pinned=False):
         config = WebKit.WKWebViewConfiguration.alloc().init()
         if self.is_incognito:
-            apply_incognito_preferences(config)
+            apply_incognito_preferences(config, shared_data_store=self.incognito_data_store)
         else:
             ds = WebKit.WKWebsiteDataStore.defaultDataStore()
             pcfg = create_nw_proxy_config("127.0.0.1", LOCAL_PROXY_PORT)
@@ -1826,7 +1844,7 @@ class BrowserWindowController(Cocoa.NSWindowController):
         uc.addUserScript_(WebKit.WKUserScript.alloc().initWithSource_injectionTime_forMainFrameOnly_(IN_WINDOW_FULLSCREEN_JS, WebKit.WKUserScriptInjectionTimeAtDocumentEnd, False))
 
         if SETTINGS.settings.get("cosmetic_adblock_enabled", True):
-            cosmetic_js = f"(function() {{ const st = document.createElement('style'); st.id = '__pybrowser_cosmetic_adblock'; st.textContent = `{COSMETIC_ADBLOCK_CSS}`; (document.head || document.documentElement).appendChild(st); }})();"
+            cosmetic_js = "(function() { const st = document.createElement('style'); st.id = '__pybrowser_cosmetic_adblock'; st.textContent = `" + COSMETIC_ADBLOCK_CSS + "`; (document.head || document.documentElement).appendChild(st); })();"
             uc.addUserScript_(WebKit.WKUserScript.alloc().initWithSource_injectionTime_forMainFrameOnly_(cosmetic_js, WebKit.WKUserScriptInjectionTimeAtDocumentStart, False))
 
         if SETTINGS.settings.get("yt_adblock_enabled", True):
@@ -1845,7 +1863,7 @@ class BrowserWindowController(Cocoa.NSWindowController):
                     reg = m.replace("*", ".*").replace("/", escaped_slash)
                     conds.append(f"new RegExp('^{reg}$').test(location.href)")
             cond_str = " || ".join(conds) if conds else "true"
-            wrapped = f"if ({cond_str}) {{\n{script['code']}\n}}"
+            wrapped = f"if ({cond_str}) {{\n" + script["code"] + "\n}}"
             uc.addUserScript_(WebKit.WKUserScript.alloc().initWithSource_injectionTime_forMainFrameOnly_(wrapped, WebKit.WKUserScriptInjectionTimeAtDocumentEnd, False))
 
         if WK_RULE_LIST and SETTINGS.settings.get("adblock_enabled", True):
@@ -2647,7 +2665,9 @@ class BrowserWindowController(Cocoa.NSWindowController):
                 except Exception:
                     pass
 
-    # WebKit Delegates
+    # ========================================================================
+    # WEBKIT DELEGATES
+    # ========================================================================
     def webView_createWebViewWithConfiguration_forNavigationAction_windowFeatures_(self, wv, cfg, act, feat):
         pending_action = getattr(wv, "pending_image_action", None)
         if pending_action:
@@ -2863,7 +2883,6 @@ class AppDelegate(Cocoa.NSObject):
                         wc.handle_escape_key()
                         return None
 
-                # Non-menu specific shortcuts
                 if cmd and shift and not opt:
                     if key == 0 or chars == 'a':
                         self.quick_switcher.show()
