@@ -12,9 +12,6 @@ import html
 import tempfile
 import shutil
 
-# ============================================================================
-# CONFIGURATION CONSTANTS & LOCAL PATHS
-# ============================================================================
 UA_PRESETS = {
     "safari_18": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
     "chrome_mac": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -23,13 +20,9 @@ UA_PRESETS = {
 }
 DEFAULT_URL = "https://www.google.com"
 
-# ============================================================================
-# DATA DIRECTORY (Strictly ~/data/)
-# ============================================================================
 DATA_DIR = os.path.expanduser("~/data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# Non-destructive automatic migration from previous browser_data if present
 _cur_dir = os.path.dirname(os.path.abspath(__file__))
 _old_candidates = [
     os.path.abspath(os.path.join(_cur_dir, "..", "browser_data")),
@@ -87,16 +80,7 @@ GROUP_COLORS = {
     "Green": "#1E8E3E", "Pink": "#E52592", "Purple": "#9334E6", "Cyan": "#12B5CB"
 }
 
-# ============================================================================
-# DOWNLOAD DIRECTORY VALIDATION & PATH HELPERS
-# ============================================================================
 def validate_and_get_download_dir(target_path=None):
-    """
-    Validates the downloads destination.
-    - Expands tildes (~).
-    - Supports mounted external devices under /Volumes/...
-    - Prevents phantom root directory creation if an external drive is unmounted.
-    """
     if not target_path:
         target_path = SETTINGS.settings.get("download_path", os.path.expanduser("~/Downloads"))
     expanded = os.path.expanduser(str(target_path).strip())
@@ -123,9 +107,6 @@ def sanitize_suggested_filename(img_url, default="image.png"):
     except Exception:
         return default
 
-# ============================================================================
-# SETTINGS MANAGER
-# ============================================================================
 class SettingsManager:
     def __init__(self):
         self.defaults = {
@@ -233,9 +214,6 @@ class SettingsManager:
 
 SETTINGS = SettingsManager()
 
-# ============================================================================
-# HTML SETTINGS PAGE GENERATOR
-# ============================================================================
 def get_settings_html(sb_count, base_count, custom_count, active_rules_count):
     s = SETTINGS.settings
     engine_preset = s.get("search_engine_preset", "google")
@@ -303,7 +281,6 @@ def get_settings_html(sb_count, base_count, custom_count, active_rules_count):
 </div>
 <div id="content"><div class="container">
 
-  <!-- Search Engine -->
   <div id="sec-search" class="section">
     <div class="section-title">🔍 Search & Omnibox</div>
     <div class="card">
@@ -340,7 +317,6 @@ def get_settings_html(sb_count, base_count, custom_count, active_rules_count):
     </div>
   </div>
 
-  <!-- Appearance & Themes -->
   <div id="sec-appearance" class="section">
     <div class="section-title">🎨 Appearance & Window</div>
     <div class="card">
@@ -398,7 +374,6 @@ def get_settings_html(sb_count, base_count, custom_count, active_rules_count):
     </div>
   </div>
 
-  <!-- uBlock & Privacy -->
   <div id="sec-privacy" class="section">
     <div class="section-title">🛡️ uBlock-Grade Privacy & Adblock <span class="badge" id="adblock-count-badge">{active_rules_count:,} rules</span></div>
     <div class="card">
@@ -484,7 +459,6 @@ def get_settings_html(sb_count, base_count, custom_count, active_rules_count):
     </div>
   </div>
 
-  <!-- General & Startup -->
   <div id="sec-general" class="section">
     <div class="section-title">⚡ General & Startup</div>
     <div class="card">
@@ -518,7 +492,6 @@ def get_settings_html(sb_count, base_count, custom_count, active_rules_count):
     </div>
   </div>
 
-  <!-- Downloads & External Devices -->
   <div id="sec-downloads" class="section">
     <div class="section-title">⬇️ Downloads & Storage Devices</div>
     <div class="card">
@@ -545,7 +518,6 @@ def get_settings_html(sb_count, base_count, custom_count, active_rules_count):
     </div>
   </div>
 
-  <!-- Network & Advanced -->
   <div id="sec-network" class="section">
     <div class="section-title">🌐 Network & Advanced</div>
     <div class="card">
@@ -573,7 +545,6 @@ def get_settings_html(sb_count, base_count, custom_count, active_rules_count):
     </div>
   </div>
 
-  <!-- Clear Browsing Data -->
   <div id="sec-clear" class="section">
     <div class="section-title">🧹 Clear Browsing Data</div>
     <div class="card">
@@ -601,7 +572,6 @@ def get_settings_html(sb_count, base_count, custom_count, active_rules_count):
     </div>
   </div>
 
-  <!-- Reset Defaults -->
   <div id="sec-reset" class="section">
     <div class="section-title">🔄 Reset Defaults</div>
     <div class="card">
