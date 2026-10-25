@@ -148,8 +148,6 @@ def doh_resolve(hostname):
     for _ in range(2):
         try:
             ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
             sock = socket.create_connection((ip_target, 443), timeout=3.5)
             ssock = ctx.wrap_socket(sock, server_hostname=host_hdr)
             sep = "&" if "?" in path_base else "?"
@@ -169,9 +167,12 @@ def doh_resolve(hostname):
                     break
                 raw_resp += chunk
             ssock.close()
-            parts = raw_resp.split(b"\r\n\r\n", 1)
-            if len(parts) == 2:
-                data = json.loads(parts[1].decode("utf-8", errors="ignore"))
+
+            # Robust JSON extraction handling chunked encoding
+            start = raw_resp.find(b'{')
+            end = raw_resp.rfind(b'}')
+            if start != -1 and end != -1 and end > start:
+                data = json.loads(raw_resp[start:end+1].decode("utf-8", errors="ignore"))
                 for answer in data.get("Answer", []):
                     if answer.get("type") == 1:
                         ip = answer.get("data")
@@ -252,7 +253,8 @@ class DoHProxyHandler(http.server.BaseHTTPRequestHandler):
         sockets = [client, upstream]
         try:
             while True:
-                r, _, _ = select.select(sockets, [], [], 15)
+                # 120s timeout ensures long-lived WebSockets / keep-alive streams don't drop
+                r, _, _ = select.select(sockets, [], [], 120)
                 if not r:
                     break
                 for sock in r:
@@ -279,7 +281,6 @@ def start_proxy_server():
         daemon_threads = True
 
         def server_bind(self):
-            # Support SO_REUSEPORT on macOS / BSD for clean local restarts
             if hasattr(socket, "SO_REUSEPORT"):
                 try:
                     self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
@@ -302,7 +303,6 @@ def dns_flush_worker():
 def create_nw_proxy_config(host="127.0.0.1", port=LOCAL_PROXY_PORT):
     """Safely instantiates an NWProxyConfig instance via Network.framework."""
     try:
-        # Import PyObjC Network module if available so runtime registers the class
         try:
             import Network
         except ImportError:
@@ -320,8 +320,6 @@ def create_nw_proxy_config(host="127.0.0.1", port=LOCAL_PROXY_PORT):
         cfg = libnet.nw_proxy_config_create_http_connect(ep, None)
         if not cfg:
             return None
-        
-        # Bridge C pointer to PyObjC object
         return objc.objc_object(c_void_p=cfg)
     except Exception as e:
         print(f"[DoH Proxy Config Error] Failed to bind proxy to WebKit: {e}")
@@ -362,7 +360,7 @@ def compile_webkit_adblock_rules():
                 "action": {"type": "block"}
             })
 
-        json_str = json.dumps(rules)
+        json_str = json.dumps(rules) if rules else "[]"
 
         def handler(rule_list, error):
             global WK_RULE_LIST
